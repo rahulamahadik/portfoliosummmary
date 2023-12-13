@@ -1,0 +1,89 @@
+import yfinance as yf
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Function to download historical stock data for a given ticker and date range
+def download_stock_data(ticker, start_date, end_date):
+    stock = yf.Ticker(ticker)
+    data = stock.history(period="1d", start=start_date, end=end_date)
+    return data
+
+# Input stock tickers and share amounts
+num_stocks = int(input("Enter the number of stocks in your portfolio: "))
+ticker_symbols = []
+share_amounts = []
+
+for i in range(num_stocks):
+    ticker = input(f"Enter the ticker symbol for stock {i + 1}: ")
+    shares = float(input(f"Enter the number of shares for {ticker}: "))
+    ticker_symbols.append(ticker)
+    share_amounts.append(shares)
+
+# Get the current date and one year ago from today
+current_date = pd.Timestamp.now()
+oneyearago = current_date - pd.DateOffset(years=1)
+
+# Initialize variables to store portfolio data
+portfolio_data = pd.DataFrame(columns=["Date", "Portfolio Growth"])
+portfolio_data.set_index("Date", inplace=True)
+
+# Initialize variables to store portfolio values for the pie chart
+portfolio_values = []
+
+# Download and calculate YTD growth for each stock in the portfolio
+for ticker, shares in zip(ticker_symbols, share_amounts):
+    stock_data = download_stock_data(ticker, oneyearago, current_date)
+    initial_price = stock_data["Close"].iloc[0]
+    stock_data["Growth"] = (stock_data["Close"] - initial_price) / initial_price * 100
+    portfolio_data = pd.concat([portfolio_data, stock_data["Growth"]], axis=1, sort=False)
+
+    # Calculate the value of each stock in the portfolio
+    stock_value = stock_data["Close"].iloc[-1] * shares
+    portfolio_values.append(stock_value)
+
+# Calculate the total portfolio growth over time by summing up the growth of all stocks
+portfolio_data["Total Portfolio Growth"] = portfolio_data.sum(axis=1)
+
+# Calculate YTD growth for the entire portfolio
+portfolio_growth = portfolio_data["Total Portfolio Growth"].iloc[-1]
+
+# Print the YTD growth for the entire portfolio
+print(f"Year-to-Date (YTD) Growth for the Portfolio: {portfolio_growth:.2f}%")
+
+# Calculate the total portfolio value
+total_portfolio_value = sum(portfolio_values)
+
+# Print the total portfolio value
+print(f"Total Portfolio Value: ${total_portfolio_value:.2f}")
+
+# Define benchmark indices (S&P 500, Dow Jones, Bloomberg Bond Index)
+benchmark_indices = ["^GSPC", "^DJI", "AGG"]
+
+# Download historical data for benchmark indices
+benchmark_data = {}
+for index in benchmark_indices:
+    benchmark_data[index] = download_stock_data(index, oneyearago, current_date)["Close"]
+    benchmark_data[index] = (benchmark_data[index] - benchmark_data[index].iloc[0]) / benchmark_data[index].iloc[0] * 100
+
+# Plot portfolio vs. benchmark indices
+plt.figure(figsize=(12, 6))
+
+# Plot portfolio growth
+plt.plot(portfolio_data.index, portfolio_data["Total Portfolio Growth"], label="Portfolio")
+
+# Plot benchmark indices
+for index in benchmark_indices:
+    plt.plot(benchmark_data[index].index, benchmark_data[index], label=index)
+
+plt.xlabel("Date")
+plt.ylabel("Percentage Change")
+plt.title("Portfolio vs. Benchmark Indices (1-Year Performance)")
+plt.legend()
+plt.grid(True)
+
+# Create a pie chart to show the positions in the portfolio
+plt.figure(figsize=(8, 8))
+plt.pie(portfolio_values, labels=[f"{sym} (${val:.2f})" for sym, val in zip(ticker_symbols, portfolio_values)], autopct='%1.1f%%', startangle=140)
+plt.title("Portfolio Composition")
+
+plt.show()
